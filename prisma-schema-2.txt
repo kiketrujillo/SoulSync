@@ -1,0 +1,188 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User model
+model User {
+  id                Int           @id @default(autoincrement())
+  email             String        @unique
+  password          String
+  birthDate         DateTime
+  birthTime         String?
+  birthPlace        String?
+  zodiacSign        String?
+  element           String?       // Fire, Earth, Air, Water
+  isIncognito       Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  // Relations
+  journals          Journal[]
+  altarSetups       AltarSetup[]
+  questProgress     QuestProgress[]
+  skillTreeProgress SkillTreeProgress[]
+  moonCircles       MoonCircle[]
+  moonCircleMembers MoonCircleMember[]
+}
+
+// Journal entries model
+model Journal {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  entry     String
+  analysis  String?  // AI-generated analysis
+  mood      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// Altar setup model
+model AltarSetup {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  items     Json     // Array of items with positions and intentions
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// Tarot card model
+model TarotCard {
+  id           Int      @id @default(autoincrement())
+  name         String
+  arcana       String   // Major or Minor
+  suit         String?  // For minor arcana
+  imageUrl     String?
+  upright      String   // Upright meaning
+  reversed     String   // Reversed meaning
+  description  String
+  keywords     String[]
+}
+
+// Ritual model
+model Ritual {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  duration    Int      // in minutes
+  steps       Json     // Array of ritual steps
+  moonPhase   String?  // Optional association with moon phase
+  element     String?  // Optional association with element
+  targetMood  String?  // Optional target mood
+}
+
+// Quest model
+model Quest {
+  id          Int             @id @default(autoincrement())
+  name        String
+  description String
+  duration    Int             // in days
+  steps       Json            // Array of quest steps
+  rewards     String?
+  cosmicEvent String?         // e.g., "New Moon", "Venus Retrograde"
+  
+  // Relations
+  progress    QuestProgress[]
+}
+
+// Quest progress model
+model QuestProgress {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  questId   Int
+  progress  Int      // 0-100%
+  currentStep Int
+  completed Boolean  @default(false)
+  startedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  quest     Quest    @relation(fields: [questId], references: [id])
+}
+
+// Skill Tree model
+model SkillTree {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  category    String   // e.g., "Astrology", "Tarot", "Kabbalah"
+  level       Int      // Difficulty level
+  parentId    Int?     // Parent skill (for tree structure)
+  imageUrl    String?
+  
+  // Relations
+  progress    SkillTreeProgress[]
+}
+
+// Skill Tree progress model
+model SkillTreeProgress {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  skillTreeId Int
+  progress    Int      // 0-100%
+  completed   Boolean  @default(false)
+  unlockedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+  skillTree   SkillTree @relation(fields: [skillTreeId], references: [id])
+}
+
+// Moon Circle model
+model MoonCircle {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  creatorId   Int
+  date        DateTime
+  duration    Int      // in minutes
+  isPrivate   Boolean  @default(false)
+  inviteCode  String?  // For private circles
+  ritualId    Int?     // Optional associated ritual
+  
+  // Relations
+  creator     User     @relation(fields: [creatorId], references: [id])
+  members     MoonCircleMember[]
+}
+
+// Mood history for tracking user moods over time
+model MoodHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  mood      String
+  note      String?
+  recordedAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// User preferences for settings and customization
+model UserPreference {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  
+  // Unique constraint for user+key
+  @@unique([userId, key])
+}

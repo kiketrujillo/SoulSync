@@ -1,0 +1,338 @@
+# ai_service/main.py
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import json
+import os
+import random
+from typing import Dict, List, Optional, Union
+import logging
+
+# In a production environment, we would use a more sophisticated AI model
+# For now, we'll use a template-based approach for demonstration purposes
+# In a real application, you would import a model like this:
+# from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="SoulSync AI Soul Guide")
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class InputData(BaseModel):
+    input: str
+
+class JournalInput(BaseModel):
+    entry: str
+    chartData: Optional[Dict] = None
+
+class DreamInput(BaseModel):
+    dreamDescription: str
+
+# Template responses based on different inputs
+templates = {
+    "mood": {
+        "calm": [
+            "Your calm energy is in perfect alignment with the universe today. This is an excellent time for {0}.",
+            "The tranquility you feel is mirrored in the cosmic alignment of {0}. Consider focusing on {1}.",
+            "Your serene state creates space for deep insight. The {0} in your chart suggests meditation on {1}."
+        ],
+        "anxious": [
+            "I sense your anxiety. When {0} transits occur, it's natural to feel this way. Try grounding through {1}.",
+            "The tension you feel may be connected to {0}. This energy is temporary and can be channeled into {1}.",
+            "Your anxiety is acknowledged. Consider that {0} is affecting your energy field. A ritual involving {1} might help."
+        ],
+        "inspired": [
+            "Your inspiration aligns beautifully with {0} in your chart. This creative energy is perfect for {1}.",
+            "The cosmic forces are amplifying your inspiration! {0} is supporting your vision. Direct this energy toward {1}.",
+            "What a wonderful time to feel inspired! The {0} suggests this is an auspicious time for {1}."
+        ],
+        "lost": [
+            "Feeling lost is part of the journey, especially during {0}. This is actually preparing you for {1}.",
+            "The uncertainty you feel resonates with {0} in transit. Trust that this is leading you toward {1}.",
+            "This feeling of being lost is acknowledged. {0} suggests that clarity will come through {1}."
+        ],
+        "emotional": [
+            "Your emotional state is being influenced by {0}. Honor these feelings by engaging in {1}.",
+            "The intensity of your emotions is aligned with {0}. These feelings are guiding you toward {1}.",
+            "Your heart is open and receptive now. {0} suggests channeling these emotions into {1}."
+        ]
+    },
+    "question_types": {
+        "future": [
+            "The cosmos suggests that {0} will play a significant role in your journey. Pay attention to {1} for guidance.",
+            "Your path forward is illuminated by {0}. The universe is guiding you toward {1}.",
+            "The stars indicate that {0} is forming in your future. Prepare by focusing on {1}."
+        ],
+        "decision": [
+            "When making this decision, consider the influence of {0} in your chart. The wisest path involves {1}.",
+            "The cosmic alignment suggests that {0} is relevant to your choice. The energy favors {1}.",
+            "As you stand at this crossroads, {0} offers guidance. Trust your intuition about {1}."
+        ],
+        "relationship": [
+            "In your relationship, {0} is playing a significant role. The connection will strengthen through {1}.",
+            "The bonds between you are influenced by {0}. Nurture this connection through {1}.",
+            "Your relationship's cosmic signature shows {0} as a key factor. Growth will come through {1}."
+        ],
+        "spiritual": [
+            "Your spiritual journey is currently aligned with {0}. Deepen your practice through {1}.",
+            "The mystical energies of {0} are available to you now. Explore them through {1}.",
+            "Your spiritual questions reflect the influence of {0}. Insight will come through {1}."
+        ],
+        "career": [
+            "Your professional path is currently under the influence of {0}. Success will come through {1}.",
+            "Career opportunities are aligning with {0} in your chart. Focus your energy on {1}.",
+            "The cosmic forces affecting your work life center around {0}. The next step involves {1}."
+        ]
+    }
+}
+
+# Cosmic elements to insert into templates
+cosmic_elements = {
+    "planets": ["the Sun", "the Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"],
+    "signs": ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"],
+    "houses": ["the first house", "the second house", "the third house", "the fourth house", "the fifth house", 
+              "the sixth house", "the seventh house", "the eighth house", "the ninth house", "the tenth house", 
+              "the eleventh house", "the twelfth house"],
+    "aspects": ["the trine between Venus and Jupiter", "the square between Mars and Saturn", 
+               "the conjunction of Sun and Mercury", "the opposition of Moon and Pluto"],
+    "tarot_cards": ["The Fool", "The Magician", "The High Priestess", "The Empress", "The Emperor", 
+                   "The Hierophant", "The Lovers", "The Chariot", "Strength", "The Hermit"],
+    "activities": ["meditation", "journaling", "ritual bathing", "tarot reflection", "crystal work", 
+                  "nature connection", "dream analysis", "chakra balancing", "altar creation", "mindful breathing"],
+    "insights": ["self-trust", "patience with the process", "embracing change", "honoring your boundaries", 
+                "expressing your truth", "connecting with your intuition", "releasing what no longer serves you",
+                "stepping into your power", "finding balance in duality", "accepting vulnerability as strength"]
+}
+
+def generate_soul_guide_response(input_data: str) -> str:
+    """Generate a response from the Soul Guide"""
+    try:
+        # Parse the input data
+        data = json.loads(input_data)
+        mood = data.get('mood', '').lower()
+        question = data.get('question', '')
+        chart_data = data.get('chartData', {})
+        transits = data.get('transits', {})
+        
+        # Log the input for debugging
+        logger.info(f"Generating response for mood: {mood}, question: {question}")
+        logger.info(f"Chart data available: {bool(chart_data)}")
+        
+        # Extract cosmic elements from the chart data if available
+        cosmic_context = []
+        if chart_data and chart_data.get('planets'):
+            for planet in chart_data['planets'][:2]:  # Just use a couple for context
+                cosmic_context.append(f"{planet['name']} in {planet['sign']}")
+        elif transits and transits.get('planets'):
+            for planet in transits['planets'][:2]:  # Just use a couple for context
+                cosmic_context.append(f"{planet['name']} in {planet['sign']}")
+        else:
+            # Use random cosmic elements if no chart data available
+            cosmic_context = [
+                f"{random.choice(cosmic_elements['planets'])} in {random.choice(cosmic_elements['signs'])}",
+                f"{random.choice(cosmic_elements['aspects'])}"
+            ]
+        
+        # Determine response type based on input
+        if mood and mood in templates['mood']:
+            # Mood-based response
+            template = random.choice(templates['mood'][mood])
+            activity = random.choice(cosmic_elements['activities'])
+            insight = random.choice(cosmic_elements['insights'])
+            response = template.format(cosmic_context[0], activity)
+        elif question:
+            # Question-based response
+            # Simple keyword detection for question type
+            question_type = "spiritual"  # default
+            question_lower = question.lower()
+            if any(word in question_lower for word in ['will', 'future', 'going to', 'happen']):
+                question_type = "future"
+            elif any(word in question_lower for word in ['should', 'decide', 'choice', 'choose']):
+                question_type = "decision"
+            elif any(word in question_lower for word in ['relationship', 'partner', 'love', 'friend']):
+                question_type = "relationship"
+            elif any(word in question_lower for word in ['job', 'career', 'work', 'business']):
+                question_type = "career"
+            
+            template = random.choice(templates['question_types'][question_type])
+            activity = random.choice(cosmic_elements['activities'])
+            insight = random.choice(cosmic_elements['insights'])
+            response = template.format(cosmic_context[0], insight)
+        else:
+            # Generic response
+            response = f"I sense the cosmic energies of {cosmic_context[0]} influencing your journey. This suggests a time for {random.choice(cosmic_elements['activities'])} and focusing on {random.choice(cosmic_elements['insights'])}."
+        
+        # Add a touch of personalization if we have chart data
+        if chart_data and chart_data.get('planets'):
+            sign = next((planet['sign'] for planet in chart_data['planets'] if planet['name'] == 'Sun'), None)
+            if sign:
+                response += f" Your {sign} essence resonates with this energy."
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error generating response: {str(e)}")
+        return "The cosmic energies are complex right now. Take a moment to center yourself and connect with your inner wisdom."
+
+def analyze_journal_entry(entry: str, chart_data=None) -> dict:
+    """Analyze a journal entry for spiritual insights"""
+    try:
+        logger.info(f"Analyzing journal entry of length: {len(entry)}")
+        
+        # Extract key themes (very simplified - would use NLP in production)
+        themes = []
+        if "dreamt" in entry.lower() or "dream" in entry.lower():
+            themes.append("dreams")
+        if any(word in entry.lower() for word in ["fear", "afraid", "scared", "anxiety"]):
+            themes.append("fears")
+        if any(word in entry.lower() for word in ["hope", "wish", "desire", "want"]):
+            themes.append("desires")
+        if any(word in entry.lower() for word in ["angry", "upset", "frustrated"]):
+            themes.append("emotional processing")
+        if any(word in entry.lower() for word in ["grateful", "thankful", "appreciate"]):
+            themes.append("gratitude")
+        
+        # If no themes detected, add some default ones
+        if not themes:
+            themes = ["reflection", "inner journey", "self-discovery"]
+        
+        # Generate cosmic insights
+        cosmic_insights = []
+        planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter"]
+        for _ in range(min(3, len(themes))):
+            planet = random.choice(planets)
+            planets.remove(planet)  # Don't reuse planets
+            theme = themes[_] if _ < len(themes) else random.choice(themes)
+            interpretation = f"Your {theme} resonates with the energy of {planet}, suggesting a time for {random.choice(cosmic_elements['insights'])}."
+            cosmic_insights.append({
+                "planet": planet,
+                "aspect": theme.capitalize(),
+                "interpretation": interpretation
+            })
+        
+        # Generate overall guidance
+        guidance = f"Your journal reveals a journey of {', '.join(themes[:2])}. "
+        guidance += f"The cosmos suggests focusing on {random.choice(cosmic_elements['activities'])} "
+        guidance += f"to deepen your understanding of {random.choice(cosmic_elements['insights'])}."
+        
+        return {
+            "themes": themes,
+            "cosmicInsights": cosmic_insights,
+            "guidance": guidance
+        }
+        
+    except Exception as e:
+        logger.error(f"Error analyzing journal: {str(e)}")
+        return {
+            "themes": ["reflection"],
+            "cosmicInsights": [{
+                "planet": "Mercury",
+                "aspect": "Reflection",
+                "interpretation": "Your thoughts are seeking clarity during this time."
+            }],
+            "guidance": "Your journal reveals thoughtful self-reflection. Continue this inner work as the cosmos supports your journey."
+        }
+
+def decode_dream(dream_description: str) -> dict:
+    """Decode a dream with spiritual and symbolic insights"""
+    try:
+        logger.info(f"Decoding dream of length: {len(dream_description)}")
+        
+        # Extract symbols (very simplified - would use NLP in production)
+        symbols = []
+        if any(word in dream_description.lower() for word in ["water", "ocean", "river", "swim"]):
+            symbols.append({"element": "water", "meaning": "emotions and the unconscious"})
+        if any(word in dream_description.lower() for word in ["fly", "bird", "sky", "air"]):
+            symbols.append({"element": "flying", "meaning": "freedom and transcendence"})
+        if any(word in dream_description.lower() for word in ["fire", "burn", "flame"]):
+            symbols.append({"element": "fire", "meaning": "transformation and passion"})
+        if any(word in dream_description.lower() for word in ["earth", "ground", "soil", "mountain"]):
+            symbols.append({"element": "earth", "meaning": "stability and groundedness"})
+        if any(word in dream_description.lower() for word in ["house", "home", "building"]):
+            symbols.append({"element": "house", "meaning": "the self and personal identity"})
+        
+        # If no symbols detected, add some default ones
+        if not symbols:
+            symbols = [
+                {"element": "journey", "meaning": "life path and personal growth"},
+                {"element": "unknown figure", "meaning": "aspect of yourself or your unconscious"}
+            ]
+        
+        # Generate archetypes
+        archetypes = []
+        all_archetypes = ["The Hero", "The Shadow", "The Anima/Animus", "The Self", "The Wise Elder", 
+                        "The Trickster", "The Child", "The Mother", "The Explorer", "The Creator"]
+        for _ in range(min(2, len(symbols))):
+            archetype = random.choice(all_archetypes)
+            all_archetypes.remove(archetype)  # Don't reuse archetypes
+            archetypes.append(archetype)
+        
+        # Generate overall guidance
+        guidance = f"Your dream features symbolism of {', '.join([s['element'] for s in symbols[:2]])}, "
+        guidance += f"suggesting a focus on {', '.join([s['meaning'] for s in symbols[:2]])}. "
+        
+        if archetypes:
+            guidance += f"The presence of {archetypes[0]} energy invites you to explore "
+            guidance += f"{random.choice(cosmic_elements['insights'])}."
+        
+        return {
+            "symbols": symbols,
+            "archetypes": archetypes,
+            "guidance": guidance
+        }
+        
+    except Exception as e:
+        logger.error(f"Error decoding dream: {str(e)}")
+        return {
+            "symbols": [
+                {"element": "water", "meaning": "emotions and the unconscious"},
+                {"element": "journey", "meaning": "life path and personal growth"}
+            ],
+            "archetypes": ["The Explorer", "The Wise Elder"],
+            "guidance": "Your dream suggests a journey through emotional depths, seeking wisdom and guidance. Pay attention to your intuition in the coming days."
+        }
+
+@app.post("/generate")
+async def generate_response(data: InputData):
+    try:
+        response = generate_soul_guide_response(data.input)
+        return {"response": response}
+    except Exception as e:
+        logger.error(f"Error in generate endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze-journal")
+async def analyze_journal(data: JournalInput):
+    try:
+        analysis = analyze_journal_entry(data.entry, data.chartData)
+        return analysis
+    except Exception as e:
+        logger.error(f"Error in analyze-journal endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/decode-dream")
+async def decode_dream_endpoint(data: DreamInput):
+    try:
+        interpretation = decode_dream(data.dreamDescription)
+        return interpretation
+    except Exception as e:
+        logger.error(f"Error in decode-dream endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/")
+async def root():
+    return {"message": "SoulSync AI Soul Guide is online ✨"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

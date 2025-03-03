@@ -1,0 +1,23 @@
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+
+# Database Configuration
+DATABASE_URL="postgresql://postgres:password@localhost:5432/soulsync?schema=public"
+MONGO_URI="mongodb://localhost:27017/soulsync"
+REDIS_URL="redis://localhost:6379"
+
+# Authentication
+JWT_SECRET="your-secret-key-change-in-production"
+JWT_EXPIRES_IN="24h"
+
+# Encryption Key (32 characters for AES-256)
+ENCRYPTION_KEY="32-character-secure-key-for-aes256"
+
+# AI Service
+AI_SERVICE_URL="http://localhost:8000"
+
+# Third-party APIs
+ASTRO_API_URL="https://api.astro.com"
+ASTRO_API_KEY="your-astro-api-key"

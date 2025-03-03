@@ -1,0 +1,25 @@
+{
+  "name": "soulsync-backend",
+  "version": "1.0.0",
+  "description": "Backend for SoulSync spiritual companion app",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "nodemon src/server.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "seed": "ts-node src/db/seed.ts",
+    "test": "jest",
+    "lint": "eslint . --ext .ts"
+  },
+  "keywords": [
+    "astrology",
+    "tarot",
+    "kabbalah",
+    "wellness",
+    "spiritual"
+  ],
+  "author": "SoulSync Team",
+  "license": "MIT"
+}

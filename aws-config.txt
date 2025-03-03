@@ -1,0 +1,365 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SoulSync Backend Infrastructure'
+
+Parameters:
+  EnvironmentName:
+    Description: The environment name (e.g., dev, staging, production)
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - production
+    
+  DatabasePassword:
+    Description: The database admin password
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    
+  RedisNodeType:
+    Description: The node type for Redis cache
+    Type: String
+    Default: cache.t3.micro
+    AllowedValues:
+      - cache.t3.micro
+      - cache.t3.small
+      - cache.m5.large
+      
+  EC2InstanceType:
+    Description: The EC2 instance type
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+
+Resources:
+  # VPC and Networking
+  SoulSyncVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-vpc
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SoulSyncVPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-public-subnet-1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SoulSyncVPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-public-subnet-2
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SoulSyncVPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.3.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-private-subnet-1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SoulSyncVPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.4.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-private-subnet-2
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-igw
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref SoulSyncVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SoulSyncVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-public-routes
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # Security Groups
+  ApiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for SoulSync API servers
+      VpcId: !Ref SoulSyncVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for SoulSync RDS
+      VpcId: !Ref SoulSyncVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ApiSecurityGroup
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Redis Cache
+      VpcId: !Ref SoulSyncVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref ApiSecurityGroup
+
+  # RDS PostgreSQL
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for SoulSync RDS
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  PostgreSQLInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: soulsync
+      Engine: postgres
+      EngineVersion: '14.6'
+      MasterUsername: postgres
+      MasterUserPassword: !Ref DatabasePassword
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 100
+      StorageType: gp2
+      MultiAZ: !If [IsProduction, true, false]
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      BackupRetentionPeriod: !If [IsProduction, 7, 1]
+      DeletionProtection: !If [IsProduction, true, false]
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-postgres
+    DeletionPolicy: Snapshot
+
+  # ElastiCache Redis
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for SoulSync Redis
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  RedisCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      CacheNodeType: !Ref RedisNodeType
+      Engine: redis
+      EngineVersion: '6.x'
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-redis
+
+  # S3 Bucket
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-soulsync-assets
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-assets
+
+  # EC2 Instances
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref EC2InstanceType
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref ApiSecurityGroup
+      ImageId: !Ref LatestAmiId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y
+          yum install -y docker git
+          systemctl start docker
+          systemctl enable docker
+          
+          # Install Node.js and NPM
+          curl -sL https://rpm.nodesource.com/setup_18.x | bash -
+          yum install -y nodejs
+          
+          # Clone repository
+          git clone https://github.com/soulsync/backend.git /opt/soulsync
+          cd /opt/soulsync
+          
+          # Create environment file
+          cat > .env << EOF
+          NODE_ENV=${EnvironmentName}
+          PORT=5000
+          DATABASE_URL=postgresql://postgres:${DatabasePassword}@${PostgreSQLInstance.Endpoint.Address}:${PostgreSQLInstance.Endpoint.Port}/soulsync
+          REDIS_URL=redis://${RedisCluster.RedisEndpoint.Address}:${RedisCluster.RedisEndpoint.Port}
+          S3_BUCKET=${AssetsBucket}
+          AWS_REGION=${AWS::Region}
+          EOF
+          
+          # Install dependencies and build
+          npm ci
+          npm run build
+          
+          # Run migrations
+          npm run prisma:migrate
+          
+          # Create systemd service
+          cat > /etc/systemd/system/soulsync.service << EOF
+          [Unit]
+          Description=SoulSync Backend
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=ec2-user
+          WorkingDirectory=/opt/soulsync
+          ExecStart=/usr/bin/npm start
+          Restart=on-failure
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          
+          # Start service
+          systemctl daemon-reload
+          systemctl start soulsync
+          systemctl enable soulsync
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-soulsync-api
+
+  # CloudWatch Logs & Alarms
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/ec2/${EnvironmentName}-soulsync-api
+      RetentionInDays: 14
+
+  ApiCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if API CPU exceeds 70% for 5 minutes
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2Instance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 70
+      ComparisonOperator: GreaterThanThreshold
+      # Add SNS topic for notifications in a real deployment
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'production']
+
+Outputs:
+  ApiEndpoint:
+    Description: The endpoint URL for the SoulSync API
+    Value: !Sub http://${EC2Instance.PublicDnsName}:5000
+    
+  PostgreSQLEndpoint:
+    Description: The connection endpoint for the PostgreSQL database
+    Value: !Sub ${PostgreSQLInstance.Endpoint.Address}:${PostgreSQLInstance.Endpoint.Port}
+    
+  RedisEndpoint:
+    Description: The connection endpoint for Redis
+    Value: !Sub ${RedisCluster.RedisEndpoint.Address}:${RedisCluster.RedisEndpoint.Port}
+    
+  S3BucketName:
+    Description: The name of the S3 bucket for assets
+    Value: !Ref AssetsBucket
+    
+  VpcId:
+    Description: The ID of the VPC
+    Value: !Ref SoulSyncVPC

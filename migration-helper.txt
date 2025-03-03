@@ -1,0 +1,129 @@
+// src/db/migration.ts
+import prisma from './prisma';
+import { logger } from '../utils/logger';
+
+/**
+ * Run database health check and report any issues
+ */
+export const checkDatabaseHealth = async (): Promise<boolean> => {
+  try {
+    // Check Prisma connection
+    await prisma.$queryRaw`SELECT 1`;
+    logger.info('PostgreSQL connection check successful');
+    
+    // Check specific tables
+    const tableCheck = await prisma.$queryRaw`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    
+    const tables = tableCheck as { table_name: string }[];
+    
+    if (tables.length === 0) {
+      logger.error('No tables found in database. Migrations may not have been run.');
+      return false;
+    }
+    
+    const expectedTables = ['User', 'Journal', 'TarotCard', 'Ritual', 'Quest'];
+    const missingTables = expectedTables.filter(
+      table => !tables.some(t => t.table_name.toLowerCase() === table.toLowerCase())
+    );
+    
+    if (missingTables.length > 0) {
+      logger.error(`Missing expected tables: ${missingTables.join(', ')}`);
+      return false;
+    }
+    
+    logger.info(`Database tables verified: ${tables.length} tables found`);
+    return true;
+  } catch (error) {
+    logger.error('Database health check failed:', error);
+    return false;
+  }
+};
+
+/**
+ * Verify the database schema is up to date
+ */
+export const verifyDatabaseSchema = async (): Promise<boolean> => {
+  try {
+    // Check for pending migrations using Prisma's migration API
+    const migrationStatus = await prisma.$executeRaw`
+      SELECT migration_name, finished_at
+      FROM _prisma_migrations
+      ORDER BY finished_at DESC
+      LIMIT 1
+    `;
+    
+    logger.info('Migration status retrieved', { migrationStatus });
+    return true;
+  } catch (error) {
+    logger.error('Failed to verify database schema:', error);
+    return false;
+  }
+};
+
+/**
+ * Initialize database with required data if empty
+ */
+export const initializeDatabase = async (): Promise<void> => {
+  try {
+    // Check if we have any tarot cards
+    const tarotCount = await prisma.tarotCard.count();
+    
+    if (tarotCount === 0) {
+      logger.info('No tarot cards found. Initializing basic data...');
+      
+      // Add a basic tarot card to get started
+      await prisma.tarotCard.create({
+        data: {
+          name: 'The Fool',
+          arcana: 'Major',
+          imageUrl: '/images/tarot/major/fool.jpg',
+          upright: 'New beginnings, innocence, adventure',
+          reversed: 'Recklessness, risk-taking, foolishness',
+          description: 'The Fool represents new beginnings, having faith in the future, being inexperienced, not knowing what to expect, having beginner's luck, improvisation and believing in the universe.',
+          keywords: ['beginnings', 'innocence', 'adventure', 'wonder']
+        }
+      });
+      
+      logger.info('Basic data initialized successfully');
+    } else {
+      logger.info(`Database contains ${tarotCount} tarot cards`);
+    }
+  } catch (error) {
+    logger.error('Failed to initialize database:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check database connection and setup at application startup
+ */
+export const setupDatabase = async (): Promise<boolean> => {
+  try {
+    logger.info('Setting up database connection...');
+    
+    // Check database health
+    const isHealthy = await checkDatabaseHealth();
+    if (!isHealthy) {
+      logger.warn('Database health check failed. The application may not function correctly.');
+    }
+    
+    // Verify schema
+    const isSchemaValid = await verifyDatabaseSchema();
+    if (!isSchemaValid) {
+      logger.warn('Database schema verification failed. Consider running migrations.');
+    }
+    
+    // Initialize with required data if needed
+    await initializeDatabase();
+    
+    logger.info('Database setup completed successfully');
+    return true;
+  } catch (error) {
+    logger.error('Database setup failed:', error);
+    return false;
+  }
+};

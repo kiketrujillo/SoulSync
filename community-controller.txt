@@ -1,0 +1,566 @@
+// src/controllers/communityController.ts
+import { Request, Response } from 'express';
+import prisma from '../db/prisma';
+import { generateToken } from '../utils/encrypt';
+import { getCurrentTransits } from '../services/astroService';
+
+/**
+ * Create a new Moon Circle
+ */
+export const createMoonCircle = async (req: Request, res: Response) => {
+  try {
+    const { name, description, date, duration, isPrivate, ritualId } = req.body;
+    const userId = req.user.id;
+    
+    if (!name || !date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a name and date for your Moon Circle.'
+      });
+    }
+    
+    // Generate invite code for private circles
+    let inviteCode = null;
+    if (isPrivate) {
+      inviteCode = generateToken(8); // 8-character invite code
+    }
+    
+    // Create the Moon Circle
+    const moonCircle = await prisma.moonCircle.create({
+      data: {
+        name,
+        description: description || '',
+        creatorId: userId,
+        date: new Date(date),
+        duration: duration || 60, // Default 60 minutes
+        isPrivate: isPrivate || false,
+        inviteCode,
+        ritualId: ritualId ? parseInt(ritualId) : null
+      }
+    });
+    
+    // Automatically add creator as a member
+    await prisma.moonCircleMember.create({
+      data: {
+        userId,
+        moonCircleId: moonCircle.id
+      }
+    });
+    
+    // Get ritual details if ritualId was provided
+    let ritual = null;
+    if (ritualId) {
+      ritual = await prisma.ritual.findUnique({
+        where: { id: parseInt(ritualId) }
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Your Moon Circle has been created.',
+      data: {
+        ...moonCircle,
+        ritual
+      }
+    });
+  } catch (error) {
+    console.error('Create Moon Circle error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Delete a Moon Circle
+ */
+export const deleteMoonCircle = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // Find the Moon Circle
+    const moonCircle = await prisma.moonCircle.findUnique({
+      where: { id: parseInt(id) }
+    });
+    
+    if (!moonCircle) {
+      return res.status(404).json({
+        success: false,
+        message: 'This Moon Circle does not exist in our cosmic registry.'
+      });
+    }
+    
+    // Check if user is the creator
+    if (moonCircle.creatorId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the creator can delete this Moon Circle.'
+      });
+    }
+    
+    // Delete all members first (cascading delete)
+    await prisma.moonCircleMember.deleteMany({
+      where: { moonCircleId: parseInt(id) }
+    });
+    
+    // Delete the Moon Circle
+    await prisma.moonCircle.delete({
+      where: { id: parseInt(id) }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Your Moon Circle has been dissolved and its energy returned to the universe.'
+    });
+  } catch (error) {
+    console.error('Delete Moon Circle error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Generate a new invite code for a private Moon Circle
+ */
+export const regenerateInviteCode = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // Find the Moon Circle
+    const moonCircle = await prisma.moonCircle.findUnique({
+      where: { id: parseInt(id) }
+    });
+    
+    if (!moonCircle) {
+      return res.status(404).json({
+        success: false,
+        message: 'This Moon Circle does not exist in our cosmic registry.'
+      });
+    }
+    
+    // Check if user is the creator
+    if (moonCircle.creatorId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the creator can regenerate the invite code.'
+      });
+    }
+    
+    // Check if the circle is private
+    if (!moonCircle.isPrivate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only private Moon Circles have invite codes.'
+      });
+    }
+    
+    // Generate new invite code
+    const inviteCode = generateToken(8);
+    
+    // Update the Moon Circle
+    const updatedMoonCircle = await prisma.moonCircle.update({
+      where: { id: parseInt(id) },
+      data: { inviteCode }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'A new invite code has been generated for your Moon Circle.',
+      data: {
+        inviteCode: updatedMoonCircle.inviteCode
+      }
+    });
+  } catch (error) {
+    console.error('Regenerate invite code error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Get all public Moon Circles
+ */
+export const getMoonCircles = async (req: Request, res: Response) => {
+  try {
+    const { upcoming } = req.query;
+    const now = new Date();
+    
+    // Find all public Moon Circles
+    const moonCircles = await prisma.moonCircle.findMany({
+      where: {
+        isPrivate: false,
+        ...(upcoming === 'true' ? { date: { gte: now } } : {})
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            zodiacSign: true,
+            element: true
+          }
+        },
+        members: {
+          select: {
+            userId: true,
+            joinedAt: true
+          }
+        }
+      },
+      orderBy: {
+        date: 'asc'
+      }
+    });
+    
+    // Get current transits for moon phase context
+    const transits = await getCurrentTransits();
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        moonCircles,
+        currentMoonPhase: transits.moonPhase
+      }
+    });
+  } catch (error) {
+    console.error('Get Moon Circles error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Get Moon Circles that the user is a member of
+ */
+export const getMyMoonCircles = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find all Moon Circles where the user is a member
+    const moonCircles = await prisma.moonCircle.findMany({
+      where: {
+        members: {
+          some: {
+            userId
+          }
+        }
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            zodiacSign: true,
+            element: true
+          }
+        },
+        members: {
+          select: {
+            userId: true,
+            joinedAt: true
+          }
+        }
+      },
+      orderBy: {
+        date: 'asc'
+      }
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: moonCircles
+    });
+  } catch (error) {
+    console.error('Get My Moon Circles error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Get a specific Moon Circle
+ */
+export const getMoonCircle = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    
+    // Find the Moon Circle
+    const moonCircle = await prisma.moonCircle.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            zodiacSign: true,
+            element: true
+          }
+        },
+        members: {
+          select: {
+            userId: true,
+            joinedAt: true,
+            user: {
+              select: {
+                email: true,
+                zodiacSign: true,
+                element: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    if (!moonCircle) {
+      return res.status(404).json({
+        success: false,
+        message: 'This Moon Circle does not exist in our cosmic registry.'
+      });
+    }
+    
+    // Check if this is a private circle that the user isn't a member of
+    if (moonCircle.isPrivate) {
+      const isMember = userId ? moonCircle.members.some(member => member.userId === userId) : false;
+      
+      if (!isMember) {
+        return res.status(403).json({
+          success: false,
+          message: 'This is a private Moon Circle. Please use an invite code to join.'
+        });
+      }
+    }
+    
+    // Get ritual details if ritualId exists
+    let ritual = null;
+    if (moonCircle.ritualId) {
+      ritual = await prisma.ritual.findUnique({
+        where: { id: moonCircle.ritualId }
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        ...moonCircle,
+        ritual,
+        isMember: userId ? moonCircle.members.some(member => member.userId === userId) : false,
+        isCreator: userId === moonCircle.creatorId
+      }
+    });
+  } catch (error) {
+    console.error('Get Moon Circle error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Join a Moon Circle
+ */
+export const joinMoonCircle = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { inviteCode } = req.body;
+    const userId = req.user.id;
+    
+    // Find the Moon Circle
+    const moonCircle = await prisma.moonCircle.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        members: {
+          select: {
+            userId: true
+          }
+        }
+      }
+    });
+    
+    if (!moonCircle) {
+      return res.status(404).json({
+        success: false,
+        message: 'This Moon Circle does not exist in our cosmic registry.'
+      });
+    }
+    
+    // Check if user is already a member
+    const isMember = moonCircle.members.some(member => member.userId === userId);
+    
+    if (isMember) {
+      return res.status(400).json({
+        success: false,
+        message: 'You are already a member of this Moon Circle.'
+      });
+    }
+    
+    // Check invite code for private circles
+    if (moonCircle.isPrivate) {
+      if (!inviteCode || inviteCode !== moonCircle.inviteCode) {
+        return res.status(403).json({
+          success: false,
+          message: 'Invalid invite code for this private Moon Circle.'
+        });
+      }
+    }
+    
+    // Add user as a member
+    await prisma.moonCircleMember.create({
+      data: {
+        userId,
+        moonCircleId: moonCircle.id
+      }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'You have joined this Moon Circle.',
+      data: {
+        moonCircleId: moonCircle.id,
+        name: moonCircle.name
+      }
+    });
+  } catch (error) {
+    console.error('Join Moon Circle error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Leave a Moon Circle
+ */
+export const leaveMoonCircle = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // Find the Moon Circle
+    const moonCircle = await prisma.moonCircle.findUnique({
+      where: { id: parseInt(id) }
+    });
+    
+    if (!moonCircle) {
+      return res.status(404).json({
+        success: false,
+        message: 'This Moon Circle does not exist in our cosmic registry.'
+      });
+    }
+    
+    // Check if user is the creator
+    if (moonCircle.creatorId === userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'As the creator, you cannot leave this Moon Circle. Please delete it instead or transfer ownership.'
+      });
+    }
+    
+    // Remove user as a member
+    const result = await prisma.moonCircleMember.deleteMany({
+      where: {
+        userId,
+        moonCircleId: moonCircle.id
+      }
+    });
+    
+    if (result.count === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'You are not a member of this Moon Circle.'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'You have left this Moon Circle.',
+      data: {
+        moonCircleId: moonCircle.id,
+        name: moonCircle.name
+      }
+    });
+  } catch (error) {
+    console.error('Leave Moon Circle error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Update a Moon Circle
+ */
+export const updateMoonCircle = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, description, date, duration, isPrivate, ritualId } = req.body;
+    const userId = req.user.id;
+    
+    // Find the Moon Circle
+    const moonCircle = await prisma.moonCircle.findUnique({
+      where: { id: parseInt(id) }
+    });
+    
+    if (!moonCircle) {
+      return res.status(404).json({
+        success: false,
+        message: 'This Moon Circle does not exist in our cosmic registry.'
+      });
+    }
+    
+    // Check if user is the creator
+    if (moonCircle.creatorId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the creator can update this Moon Circle.'
+      });
+    }
+    
+    // Generate new invite code if privacy status changes to private
+    let inviteCode = moonCircle.inviteCode;
+    if (isPrivate === true && !moonCircle.isPrivate) {
+      inviteCode = generateToken(8);
+    }
+    
+    // Update the Moon Circle
+    const updatedMoonCircle = await prisma.moonCircle.update({
+      where: { id: parseInt(id) },
+      data: {
+        name: name || undefined,
+        description: description || undefined,
+        date: date ? new Date(date) : undefined,
+        duration: duration || undefined,
+        isPrivate: isPrivate,
+        inviteCode,
+        ritualId: ritualId ? parseInt(ritualId) : null
+      }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Your Moon Circle has been updated.',
+      data: updatedMoonCircle
+    });
+  } catch (error) {
+    console.error('Update Moon Circle error:', error);
+    res.status(500).json({
+      success: false,
+      message: 

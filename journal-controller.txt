@@ -1,0 +1,236 @@
+// src/controllers/journalController.ts
+import { Request, Response } from 'express';
+import Journal from '../models/journal';
+import { analyzeJournal } from '../services/aiService';
+import { getCurrentTransits } from '../services/astroService';
+
+/**
+ * Create a new journal entry
+ */
+export const createEntry = async (req: Request, res: Response) => {
+  try {
+    const { entry, mood, tags } = req.body;
+    const userId = req.user.id;
+    
+    if (!entry) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your cosmic thoughts to journal.'
+      });
+    }
+    
+    // Create the journal entry
+    const newEntry = new Journal({
+      userId,
+      entry,
+      mood,
+      tags: tags || [],
+      createdAt: new Date()
+    });
+    
+    // Optionally analyze the entry if it's longer than a certain length
+    if (entry.length > 100) {
+      try {
+        const transits = await getCurrentTransits();
+        const analysis = await analyzeJournal(entry, transits);
+        
+        if (analysis) {
+          newEntry.analysis = analysis.guidance;
+          newEntry.cosmicInsights = analysis.cosmicInsights;
+        }
+      } catch (error) {
+        console.error('Journal analysis error:', error);
+        // Continue without analysis if it fails
+      }
+    }
+    
+    await newEntry.save();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Your cosmic thoughts have been journaled.',
+      data: newEntry
+    });
+  } catch (error) {
+    console.error('Create journal entry error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Get all journal entries for a user
+ */
+export const getEntries = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 10, startDate, endDate, mood, tag } = req.query;
+    
+    // Build filter
+    const filter: any = { userId };
+    
+    // Date range filter
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(String(startDate));
+      if (endDate) filter.createdAt.$lte = new Date(String(endDate));
+    }
+    
+    // Mood filter
+    if (mood) filter.mood = mood;
+    
+    // Tag filter
+    if (tag) filter.tags = { $in: [tag] };
+    
+    // Get total count
+    const total = await Journal.countDocuments(filter);
+    
+    // Get paginated entries
+    const entries = await Journal.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit));
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        entries,
+        pagination: {
+          total,
+          page: Number(page),
+          limit: Number(limit),
+          pages: Math.ceil(total / Number(limit))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get journal entries error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Get a specific journal entry
+ */
+export const getEntry = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // Find the entry
+    const entry = await Journal.findOne({ _id: id, userId });
+    
+    if (!entry) {
+      return res.status(404).json({
+        success: false,
+        message: 'This cosmic thought is not in your journal.'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: entry
+    });
+  } catch (error) {
+    console.error('Get journal entry error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Update a journal entry
+ */
+export const updateEntry = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { entry, mood, tags } = req.body;
+    const userId = req.user.id;
+    
+    // Find the entry
+    const journalEntry = await Journal.findOne({ _id: id, userId });
+    
+    if (!journalEntry) {
+      return res.status(404).json({
+        success: false,
+        message: 'This cosmic thought is not in your journal.'
+      });
+    }
+    
+    // Update fields
+    if (entry) journalEntry.entry = entry;
+    if (mood) journalEntry.mood = mood;
+    if (tags) journalEntry.tags = tags;
+    
+    // Update timestamp
+    journalEntry.updatedAt = new Date();
+    
+    // Optionally re-analyze if entry was updated and is long enough
+    if (entry && entry.length > 100) {
+      try {
+        const transits = await getCurrentTransits();
+        const analysis = await analyzeJournal(entry, transits);
+        
+        if (analysis) {
+          journalEntry.analysis = analysis.guidance;
+          journalEntry.cosmicInsights = analysis.cosmicInsights;
+        }
+      } catch (error) {
+        console.error('Journal analysis error:', error);
+        // Continue without analysis if it fails
+      }
+    }
+    
+    await journalEntry.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Your cosmic thought has been updated.',
+      data: journalEntry
+    });
+  } catch (error) {
+    console.error('Update journal entry error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};
+
+/**
+ * Delete a journal entry
+ */
+export const deleteEntry = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // Find and delete the entry
+    const result = await Journal.deleteOne({ _id: id, userId });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'This cosmic thought is not in your journal.'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Your cosmic thought has been released back to the universe.'
+    });
+  } catch (error) {
+    console.error('Delete journal entry error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'The cosmic energies are turbulent. Please try again later.'
+    });
+  }
+};

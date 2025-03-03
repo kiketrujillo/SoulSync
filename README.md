@@ -1,9 +1,5 @@
-# SoulSync
 # SoulSync ✨
 
-<div align="center">
-  
-![SoulSync Logo](https://place-hold.it/300x300?text=SoulSync&fontsize=30)
 
 *Your personal spiritual companion app*
 

@@ -1,0 +1,678 @@
+// src/screens/WellnessQuests.js
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Components
+import SectionTitle from '../components/SectionTitle';
+import GlowingCard from '../components/GlowingCard';
+import Button from '../components/Button';
+import BottomDrawer from '../components/BottomDrawer';
+
+const Container = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  background: ${props => props.theme.gradient || 'linear-gradient(to bottom, #87CEEB, #FFFFFF)'};
+  padding: 24px;
+`;
+
+const Header = styled.div`
+  margin-bottom: 32px;
+`;
+
+const Description = styled.p`
+  margin-bottom: 24px;
+  line-height: 1.6;
+`;
+
+const QuestsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 24px;
+`;
+
+const QuestCard = styled(GlowingCard)`
+  position: relative;
+  padding-right: ${props => props.active ? '24px' : props.completed ? '24px' : '24px'};
+  border-left: 4px solid ${props => props.active 
+    ? props.theme.primary || '#87CEEB' 
+    : props.completed 
+      ? '#90EE90' 
+      : 'rgba(255, 255, 255, 0.3)'};
+`;
+
+const QuestHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+`;
+
+const QuestTitle = styled.h3`
+  margin: 0;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const QuestBadge = styled.span`
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background-color: ${props => 
+    props.type === 'moon' ? 'rgba(155, 176, 255, 0.2)' : 
+    props.type === 'planet' ? 'rgba(255, 199, 125, 0.2)' : 
+    'rgba(255, 255, 255, 0.2)'};
+  color: ${props => props.theme.text?.primary || '#333333'};
+`;
+
+const QuestDate = styled.span`
+  font-size: 0.8rem;
+  color: ${props => props.theme.text?.secondary || '#666666'};
+`;
+
+const QuestDescription = styled.p`
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+`;
+
+const ProgressContainer = styled.div`
+  margin-bottom: 16px;
+`;
+
+const ProgressLabel = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+`;
+
+const ProgressBar = styled.div`
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+`;
+
+const ProgressFill = styled(motion.div)`
+  height: 100%;
+  background: ${props => props.completed 
+    ? '#90EE90' 
+    : props.theme.primary || '#87CEEB'};
+  border-radius: 4px;
+`;
+
+const QuestSteps = styled.div`
+  margin-bottom: 16px;
+`;
+
+const QuestStep = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const StepCheckbox = styled.div`
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid ${props => props.completed 
+    ? '#90EE90' 
+    : props.theme.primary || '#87CEEB'};
+  background: ${props => props.completed 
+    ? '#90EE90' 
+    : 'transparent'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.7rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+`;
+
+const StepContent = styled.div`
+  flex: 1;
+`;
+
+const StepTitle = styled.div`
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: ${props => props.completed 
+    ? props.theme.text?.secondary || '#666666' 
+    : props.theme.text?.primary || '#333333'};
+  text-decoration: ${props => props.completed ? 'line-through' : 'none'};
+`;
+
+const StepDescription = styled.div`
+  font-size: 0.8rem;
+  color: ${props => props.theme.text?.secondary || '#666666'};
+`;
+
+const RewardCard = styled.div`
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 16px;
+`;
+
+const RewardTitle = styled.h4`
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const RewardDescription = styled.p`
+  margin: 0;
+  font-size: 0.8rem;
+  color: ${props => props.theme.text?.secondary || '#666666'};
+`;
+
+const TabsContainer = styled.div`
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 24px;
+`;
+
+const TabButton = styled(Button)`
+  flex-shrink: 0;
+`;
+
+const QuestDetailsContainer = styled.div`
+  padding: 16px;
+`;
+
+const DetailSection = styled.div`
+  margin-bottom: 24px;
+`;
+
+const DetailTitle = styled.h3`
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 1.2rem;
+`;
+
+const CosmicInfo = styled.div`
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+`;
+
+const CosmicInfoTitle = styled.h4`
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ResourcesList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const ResourceItem = styled.div`
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+`;
+
+const ResourceIcon = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: ${props => props.theme.primary || '#87CEEB'}30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+`;
+
+const ResourceContent = styled.div`
+  flex: 1;
+`;
+
+const ResourceTitle = styled.div`
+  font-weight: 500;
+  margin-bottom: 4px;
+`;
+
+const ResourceDescription = styled.div`
+  font-size: 0.8rem;
+  color: ${props => props.theme.text?.secondary || '#666666'};
+`;
+
+// Mock data for quests
+const mockQuests = [
+  {
+    id: 1,
+    title: 'New Moon Intention Setting',
+    emoji: '🌑',
+    type: 'moon',
+    description: 'Harness the energy of the new moon to set powerful intentions for the upcoming lunar cycle.',
+    dueDate: '2023-07-17',
+    progress: 0.75,
+    active: true,
+    completed: false,
+    celestialEvent: {
+      name: 'New Moon in Cancer',
+      date: '2023-07-17',
+      description: 'This new moon in Cancer brings powerful energy for emotional renewal and setting intentions around home, family, and emotional well-being.'
+    },
+    steps: [
+      { 
+        id: 1, 
+        title: 'Prepare your sacred space', 
+        description: 'Find a quiet area and set up with candles, crystals, or any items that help you feel connected.',
+        completed: true 
+      },
+      { 
+        id: 2, 
+        title: 'Cleansing meditation', 
+        description: 'Spend 5-10 minutes in meditation, visualizing releasing what no longer serves you.',
+        completed: true 
+      },
+      { 
+        id: 3, 
+        title: 'Write your intentions', 
+        description: 'Write down 3-5 clear intentions for the new cycle, focusing on what you want to manifest.',
+        completed: true 
+      },
+      { 
+        id: 4, 
+        title: 'Activation ritual', 
+        description: 'Read your intentions aloud and visualize them coming true while lighting a candle.',
+        completed: false 
+      },
+      { 
+        id: 5, 
+        title: 'Integration practice', 
+        description: 'Place your written intentions somewhere visible and revisit them daily for the next week.',
+        completed: false 
+      }
+    ],
+    rewards: {
+      experience: 150,
+      skillPoints: 'Lunar Magic +10',
+      item: 'Cosmic Manifestation Crystal (digital)'
+    },
+    resources: [
+      {
+        id: 1,
+        title: 'Understanding Moon Phases',
+        type: 'article',
+        icon: '📖',
+        description: 'Learn about the energy of different moon phases and how they affect your spiritual practice.'
+      },
+      {
+        id: 2,
+        title: 'New Moon Meditation',
+        type: 'audio',
+        icon: '🎧',
+        description: 'A guided 10-minute meditation specifically designed for new moon energy work.'
+      }
+    ]
+  },
+  {
+    id: 2,
+    title: 'Mercury Retrograde Preparation',
+    emoji: '☿️',
+    type: 'planet',
+    description: 'Prepare for Mercury Retrograde with protective practices and mindful communication strategies.',
+    dueDate: '2023-08-01',
+    progress: 0.2,
+    active: true,
+    completed: false,
+    steps: [
+      { 
+        id: 1, 
+        title: 'Technology backup', 
+        description: 'Back up important files and prepare for potential communication glitches.',
+        completed: true 
+      },
+      { 
+        id: 2, 
+        title: 'Clear communication practice', 
+        description: 'Practice mindful communication exercises to avoid misunderstandings.',
+        completed: false 
+      },
+      { 
+        id: 3, 
+        title: 'Mercury retrograde altar', 
+        description: 'Set up a protective altar with blue crystals and communication symbols.',
+        completed: false 
+      }
+    ]
+  },
+  {
+    id: 3,
+    title: 'Full Moon Release Ritual',
+    emoji: '🌕',
+    type: 'moon',
+    description: 'Let go of what no longer serves you under the illuminating light of the full moon.',
+    dueDate: '2023-07-03',
+    progress: 1,
+    active: false,
+    completed: true,
+    steps: [
+      { 
+        id: 1, 
+        title: 'Identify what to release', 
+        description: 'Reflect on habits, thoughts, or situations you're ready to let go of.',
+        completed: true 
+      },
+      { 
+        id: 2, 
+        title: 'Write release statements', 
+        description: 'Write "I release..." statements for each item you identified.',
+        completed: true 
+      },
+      { 
+        id: 3, 
+        title: 'Full moon bath ritual', 
+        description: 'Take a cleansing bath with moon-charged water and salt.',
+        completed: true 
+      },
+      { 
+        id: 4, 
+        title: 'Burning ceremony', 
+        description: 'Safely burn your release statements while visualizing letting go.',
+        completed: true 
+      }
+    ]
+  }
+];
+
+const WellnessQuests = () => {
+  const [activeTab, setActiveTab] = useState('active'); // active, completed, all
+  const [selectedQuest, setSelectedQuest] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [quests, setQuests] = useState(mockQuests);
+  
+  const filteredQuests = activeTab === 'active' 
+    ? quests.filter(quest => quest.active && !quest.completed)
+    : activeTab === 'completed'
+      ? quests.filter(quest => quest.completed)
+      : quests;
+  
+  const handleQuestClick = (quest) => {
+    setSelectedQuest(quest);
+    setIsDetailsOpen(true);
+  };
+  
+  const handleStepToggle = (questId, stepId) => {
+    setQuests(prev => 
+      prev.map(quest => {
+        if (quest.id === questId) {
+          const updatedSteps = quest.steps.map(step => 
+            step.id === stepId ? { ...step, completed: !step.completed } : step
+          );
+          
+          const totalSteps = updatedSteps.length;
+          const completedSteps = updatedSteps.filter(step => step.completed).length;
+          const progress = totalSteps > 0 ? completedSteps / totalSteps : 0;
+          const completed = progress === 1;
+          
+          return { 
+            ...quest, 
+            steps: updatedSteps,
+            progress,
+            completed,
+            active: !completed && quest.active
+          };
+        }
+        return quest;
+      })
+    );
+    
+    // Also update selected quest if open
+    if (selectedQuest && selectedQuest.id === questId) {
+      const updatedQuest = quests.find(q => q.id === questId);
+      const updatedSteps = updatedQuest.steps.map(step => 
+        step.id === stepId ? { ...step, completed: !step.completed } : step
+      );
+      
+      const totalSteps = updatedSteps.length;
+      const completedSteps = updatedSteps.filter(step => step.completed).length;
+      const progress = totalSteps > 0 ? completedSteps / totalSteps : 0;
+      const completed = progress === 1;
+      
+      setSelectedQuest({
+        ...updatedQuest,
+        steps: updatedSteps,
+        progress,
+        completed,
+        active: !completed && updatedQuest.active
+      });
+    }
+  };
+  
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+  
+  return (
+    <Container>
+      <Header>
+        <SectionTitle>Wellness Quests</SectionTitle>
+        <Description>
+          Complete cosmic-aligned quests to enhance your spiritual practice and earn rewards.
+          Quests are tied to celestial events like moon phases and planetary transits.
+        </Description>
+      </Header>
+      
+      <TabsContainer>
+        <TabButton
+          variant={activeTab === 'active' ? 'primary' : 'secondary'}
+          size="small"
+          onClick={() => setActiveTab('active')}
+        >
+          Active Quests
+        </TabButton>
+        <TabButton
+          variant={activeTab === 'completed' ? 'primary' : 'secondary'}
+          size="small"
+          onClick={() => setActiveTab('completed')}
+        >
+          Completed
+        </TabButton>
+        <TabButton
+          variant={activeTab === 'all' ? 'primary' : 'secondary'}
+          size="small"
+          onClick={() => setActiveTab('all')}
+        >
+          All Quests
+        </TabButton>
+      </TabsContainer>
+      
+      <QuestsContainer>
+        {filteredQuests.length === 0 ? (
+          <p style={{ textAlign: 'center', fontStyle: 'italic' }}>
+            No quests available. New quests will appear with upcoming cosmic events.
+          </p>
+        ) : (
+          filteredQuests.map(quest => (
+            <QuestCard 
+              key={quest.id}
+              active={quest.active}
+              completed={quest.completed}
+              onClick={() => handleQuestClick(quest)}
+            >
+              <QuestHeader>
+                <QuestTitle>
+                  <span>{quest.emoji}</span> {quest.title}
+                </QuestTitle>
+                <QuestBadge type={quest.type}>
+                  {quest.type === 'moon' ? 'Moon Phase' : 'Planetary'}
+                </QuestBadge>
+              </QuestHeader>
+              
+              <QuestDescription>{quest.description}</QuestDescription>
+              
+              <QuestDate>Due: {formatDate(quest.dueDate)}</QuestDate>
+              
+              <ProgressContainer>
+                <ProgressLabel>
+                  <span>Progress</span>
+                  <span>{Math.round(quest.progress * 100)}%</span>
+                </ProgressLabel>
+                <ProgressBar>
+                  <ProgressFill 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${quest.progress * 100}%` }}
+                    transition={{ duration: 0.5 }}
+                    completed={quest.completed}
+                  />
+                </ProgressBar>
+              </ProgressContainer>
+              
+              <Button 
+                variant={quest.completed ? 'secondary' : 'primary'} 
+                size="small"
+              >
+                {quest.completed ? 'View Details' : 'Continue Quest'}
+              </Button>
+            </QuestCard>
+          ))
+        )}
+      </QuestsContainer>
+      
+      <BottomDrawer
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+        height="80vh"
+      >
+        {selectedQuest && (
+          <QuestDetailsContainer>
+            <SectionTitle>
+              <span>{selectedQuest.emoji}</span> {selectedQuest.title}
+            </SectionTitle>
+            
+            <DetailSection>
+              <QuestDescription>{selectedQuest.description}</QuestDescription>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <QuestBadge type={selectedQuest.type}>
+                  {selectedQuest.type === 'moon' ? 'Moon Phase' : 'Planetary'}
+                </QuestBadge>
+                <QuestDate>Due: {formatDate(selectedQuest.dueDate)}</QuestDate>
+              </div>
+            </DetailSection>
+            
+            {selectedQuest.celestialEvent && (
+              <CosmicInfo>
+                <CosmicInfoTitle>
+                  {selectedQuest.type === 'moon' ? '🌙' : '🪐'} {selectedQuest.celestialEvent.name}
+                </CosmicInfoTitle>
+                <p style={{ margin: '0', fontSize: '0.9rem' }}>
+                  {selectedQuest.celestialEvent.description}
+                </p>
+                <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#666' }}>
+                  {formatDate(selectedQuest.celestialEvent.date)}
+                </div>
+              </CosmicInfo>
+            )}
+            
+            <DetailSection>
+              <DetailTitle>Quest Steps</DetailTitle>
+              <ProgressContainer>
+                <ProgressLabel>
+                  <span>Progress</span>
+                  <span>{Math.round(selectedQuest.progress * 100)}%</span>
+                </ProgressLabel>
+                <ProgressBar>
+                  <ProgressFill 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${selectedQuest.progress * 100}%` }}
+                    transition={{ duration: 0.5 }}
+                    completed={selectedQuest.completed}
+                  />
+                </ProgressBar>
+              </ProgressContainer>
+              
+              <QuestSteps>
+                {selectedQuest.steps.map(step => (
+                  <QuestStep key={step.id}>
+                    <StepCheckbox 
+                      completed={step.completed ? 1 : 0}
+                      onClick={() => handleStepToggle(selectedQuest.id, step.id)}
+                    >
+                      {step.completed && '✓'}
+                    </StepCheckbox>
+                    <StepContent>
+                      <StepTitle completed={step.completed ? 1 : 0}>
+                        {step.title}
+                      </StepTitle>
+                      <StepDescription>
+                        {step.description}
+                      </StepDescription>
+                    </StepContent>
+                  </QuestStep>
+                ))}
+              </QuestSteps>
+            </DetailSection>
+            
+            {selectedQuest.rewards && (
+              <DetailSection>
+                <DetailTitle>Rewards</DetailTitle>
+                <RewardCard>
+                  <RewardTitle>
+                    <span>✨</span> Quest Completion Rewards
+                  </RewardTitle>
+                  <ul style={{ margin: '0', paddingLeft: '24px' }}>
+                    <li>{selectedQuest.rewards.experience} XP</li>
+                    <li>{selectedQuest.rewards.skillPoints}</li>
+                    <li>{selectedQuest.rewards.item}</li>
+                  </ul>
+                </RewardCard>
+              </DetailSection>
+            )}
+            
+            {selectedQuest.resources && selectedQuest.resources.length > 0 && (
+              <DetailSection>
+                <DetailTitle>Helpful Resources</DetailTitle>
+                <ResourcesList>
+                  {selectedQuest.resources.map(resource => (
+                    <ResourceItem key={resource.id}>
+                      <ResourceIcon>{resource.icon}</ResourceIcon>
+                      <ResourceContent>
+                        <ResourceTitle>{resource.title}</ResourceTitle>
+                        <ResourceDescription>{resource.description}</ResourceDescription>
+                      </ResourceContent>
+                    </ResourceItem>
+                  ))}
+                </ResourcesList>
+              </DetailSection>
+            )}
+          </QuestDetailsContainer>
+        )}
+      </BottomDrawer>
+    </Container>
+  );
+};
+
+export default WellnessQuests;

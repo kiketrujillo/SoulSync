@@ -1,0 +1,417 @@
+// src/screens/SoulMap.js
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useSelector } from 'react-redux';
+
+// Components
+import SectionTitle from '../components/SectionTitle';
+import GlowingCard from '../components/GlowingCard';
+import Button from '../components/Button';
+
+const Container = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  background: ${props => props.theme.gradient || 'linear-gradient(to bottom, #87CEEB, #FFFFFF)'};
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+`;
+
+const Header = styled.header`
+  margin-bottom: 24px;
+`;
+
+const ChartContainer = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 24px;
+`;
+
+const Chart = styled(motion.div)`
+  width: 100%;
+  max-width: 500px;
+  height: 500px;
+  position: relative;
+  margin: 0 auto;
+`;
+
+const ChartCircle = styled(motion.div)`
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  
+  &:nth-child(1) {
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+  }
+  
+  &:nth-child(2) {
+    width: 80%;
+    height: 80%;
+    top: 10%;
+    left: 10%;
+  }
+  
+  &:nth-child(3) {
+    width: 60%;
+    height: 60%;
+    top: 20%;
+    left: 20%;
+  }
+`;
+
+const ZodiacSign = styled(motion.div)`
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: ${props => props.theme.shadows?.soft || '0 4px 8px rgba(0, 0, 0, 0.1)'};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: ${props => props.theme.shadows?.glow || '0 0 15px rgba(255, 255, 255, 0.7)'};
+  }
+`;
+
+const Planet = styled(motion.div)`
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: ${props => props.theme.primary || '#87CEEB'}40;
+  border: 1px solid ${props => props.theme.primary || '#87CEEB'};
+  font-size: 1.2rem;
+  cursor: pointer;
+  z-index: 2;
+  
+  &:hover {
+    box-shadow: 0 0 10px ${props => props.theme.primary || '#87CEEB'};
+  }
+`;
+
+const HouseLabel = styled.div`
+  position: absolute;
+  font-size: 0.8rem;
+  color: ${props => props.theme.text?.secondary || '#666666'};
+`;
+
+const InfoCard = styled(GlowingCard)`
+  margin-top: 24px;
+  max-width: 500px;
+  width: 100%;
+  align-self: center;
+`;
+
+const AspectLine = styled(motion.div)`
+  position: absolute;
+  width: ${props => props.length}px;
+  height: 1px;
+  background: ${props => props.color || 'rgba(255, 255, 255, 0.3)'};
+  transform: rotate(${props => props.angle}deg);
+  transform-origin: left center;
+  top: ${props => props.top}px;
+  left: ${props => props.left}px;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+`;
+
+const FilterButton = styled(Button)`
+  flex: 1;
+  min-width: auto;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+`;
+
+// Mock data for the natal chart
+const mockZodiacSigns = [
+  { id: 1, name: 'Aries', symbol: '♈', degree: 0 },
+  { id: 2, name: 'Taurus', symbol: '♉', degree: 30 },
+  { id: 3, name: 'Gemini', symbol: '♊', degree: 60 },
+  { id: 4, name: 'Cancer', symbol: '♋', degree: 90 },
+  { id: 5, name: 'Leo', symbol: '♌', degree: 120 },
+  { id: 6, name: 'Virgo', symbol: '♍', degree: 150 },
+  { id: 7, name: 'Libra', symbol: '♎', degree: 180 },
+  { id: 8, name: 'Scorpio', symbol: '♏', degree: 210 },
+  { id: 9, name: 'Sagittarius', symbol: '♐', degree: 240 },
+  { id: 10, name: 'Capricorn', symbol: '♑', degree: 270 },
+  { id: 11, name: 'Aquarius', symbol: '♒', degree: 300 },
+  { id: 12, name: 'Pisces', symbol: '♓', degree: 330 },
+];
+
+const mockPlanets = [
+  { id: 1, name: 'Sun', symbol: '☉', sign: 'Leo', degree: 125, description: 'Your core identity and life purpose. In Leo, you express yourself confidently and creatively.' },
+  { id: 2, name: 'Moon', symbol: '☽', sign: 'Cancer', degree: 95, description: 'Your emotional nature and subconscious mind. In Cancer, you seek emotional security and nurturing connections.' },
+  { id: 3, name: 'Mercury', symbol: '☿', sign: 'Virgo', degree: 155, description: 'How you think and communicate. In Virgo, you analyze details carefully and communicate precisely.' },
+  { id: 4, name: 'Venus', symbol: '♀', sign: 'Libra', degree: 185, description: 'How you express love and what you value. In Libra, you seek harmony and balance in relationships.' },
+  { id: 5, name: 'Mars', symbol: '♂', sign: 'Aries', degree: 15, description: 'Your drive, ambition, and how you take action. In Aries, you're direct, assertive, and passionate.' },
+  { id: 6, name: 'Jupiter', symbol: '♃', sign: 'Sagittarius', degree: 245, description: 'How you seek growth and expansion. In Sagittarius, you explore philosophical truths and seek meaningful experiences.' },
+  { id: 7, name: 'Saturn', symbol: '♄', sign: 'Capricorn', degree: 275, description: 'Your sense of discipline and structure. In Capricorn, you're responsible, ambitious, and goal-oriented.' },
+];
+
+// Mock aspects between planets
+const mockAspects = [
+  { planet1: 1, planet2: 5, type: 'trine', color: '#90EE90', angle: 120 }, // Sun trine Mars
+  { planet1: 2, planet2: 4, type: 'opposition', color: '#FF6B6B', angle: 180 }, // Moon opposite Venus
+  { planet1: 3, planet2: 7, type: 'square', color: '#FFA500', angle: 90 }, // Mercury square Saturn
+];
+
+const SoulMap = () => {
+  const [selectedPlanet, setSelectedPlanet] = useState(null);
+  const [filter, setFilter] = useState('all'); // all, planets, houses, aspects
+  
+  const user = useSelector(state => state.user);
+  
+  // Calculate positions on the chart circle
+  const calculatePosition = (degree, radius) => {
+    const centerX = 250; // Assuming the chart is 500x500
+    const centerY = 250;
+    const radian = (degree - 90) * (Math.PI / 180); // -90 to start from the top
+    
+    return {
+      x: centerX + radius * Math.cos(radian),
+      y: centerY + radius * Math.sin(radian)
+    };
+  };
+  
+  const getPlanetInfo = (planetId) => {
+    return mockPlanets.find(planet => planet.id === planetId);
+  };
+  
+  const renderZodiacSigns = () => {
+    if (filter !== 'all' && filter !== 'signs') return null;
+    
+    return mockZodiacSigns.map(sign => {
+      const pos = calculatePosition(sign.degree, 235); // Outer circle
+      
+      return (
+        <ZodiacSign
+          key={sign.id}
+          style={{ top: pos.y - 24, left: pos.x - 24 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          {sign.symbol}
+        </ZodiacSign>
+      );
+    });
+  };
+  
+  const renderPlanets = () => {
+    if (filter !== 'all' && filter !== 'planets') return null;
+    
+    return mockPlanets.map(planet => {
+      const pos = calculatePosition(planet.degree, 155); // Middle circle
+      
+      return (
+        <Planet
+          key={planet.id}
+          style={{ top: pos.y - 20, left: pos.x - 20 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setSelectedPlanet(planet)}
+        >
+          {planet.symbol}
+        </Planet>
+      );
+    });
+  };
+  
+  const renderHouses = () => {
+    if (filter !== 'all' && filter !== 'houses') return null;
+    
+    return Array.from({ length: 12 }, (_, i) => {
+      const houseNumber = i + 1;
+      const degree = i * 30;
+      const pos = calculatePosition(degree, 75); // Inner circle
+      
+      return (
+        <HouseLabel
+          key={houseNumber}
+          style={{ top: pos.y, left: pos.x }}
+        >
+          {houseNumber}
+        </HouseLabel>
+      );
+    });
+  };
+  
+  const renderAspects = () => {
+    if (filter !== 'all' && filter !== 'aspects') return null;
+    
+    return mockAspects.map((aspect, index) => {
+      const planet1 = getPlanetInfo(aspect.planet1);
+      const planet2 = getPlanetInfo(aspect.planet2);
+      
+      const pos1 = calculatePosition(planet1.degree, 155);
+      const pos2 = calculatePosition(planet2.degree, 155);
+      
+      const dx = pos2.x - pos1.x;
+      const dy = pos2.y - pos1.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      
+      return (
+        <AspectLine
+          key={index}
+          length={distance}
+          angle={angle}
+          color={aspect.color}
+          top={pos1.y}
+          left={pos1.x}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.7 }}
+          transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
+        />
+      );
+    });
+  };
+  
+  return (
+    <Container>
+      <Header>
+        <SectionTitle>Your Living Soul Map</SectionTitle>
+        <p>An interactive view of your cosmic blueprint, merging astrology with the Kabbalistic Tree of Life.</p>
+      </Header>
+      
+      <ButtonGroup>
+        <FilterButton 
+          variant={filter === 'all' ? 'primary' : 'secondary'} 
+          onClick={() => setFilter('all')}
+        >
+          All
+        </FilterButton>
+        <FilterButton 
+          variant={filter === 'planets' ? 'primary' : 'secondary'} 
+          onClick={() => setFilter('planets')}
+        >
+          Planets
+        </FilterButton>
+        <FilterButton 
+          variant={filter === 'signs' ? 'primary' : 'secondary'} 
+          onClick={() => setFilter('signs')}
+        >
+          Signs
+        </FilterButton>
+        <FilterButton 
+          variant={filter === 'houses' ? 'primary' : 'secondary'} 
+          onClick={() => setFilter('houses')}
+        >
+          Houses
+        </FilterButton>
+        <FilterButton 
+          variant={filter === 'aspects' ? 'primary' : 'secondary'} 
+          onClick={() => setFilter('aspects')}
+        >
+          Aspects
+        </FilterButton>
+      </ButtonGroup>
+      
+      <ChartContainer>
+        <Chart>
+          <ChartCircle 
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          />
+          <ChartCircle 
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          />
+          <ChartCircle 
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          />
+          
+          {renderAspects()}
+          {renderHouses()}
+          {renderPlanets()}
+          {renderZodiacSigns()}
+        </Chart>
+        
+        <AnimatePresence>
+          {selectedPlanet && (
+            <InfoCard
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <h3>{selectedPlanet.name} in {selectedPlanet.sign}</h3>
+              <p>{selectedPlanet.description}</p>
+              <p style={{ marginTop: '16px', fontSize: '0.9rem', color: '#666' }}>
+                The position of your {selectedPlanet.name} reflects how you {selectedPlanet.name === 'Sun' 
+                  ? 'express your core essence' 
+                  : selectedPlanet.name === 'Moon' 
+                    ? 'process emotions' 
+                    : selectedPlanet.name === 'Mercury' 
+                      ? 'think and communicate' 
+                      : selectedPlanet.name === 'Venus' 
+                        ? 'relate to others and experience pleasure' 
+                        : selectedPlanet.name === 'Mars' 
+                          ? 'assert yourself and take action' 
+                          : selectedPlanet.name === 'Jupiter' 
+                            ? 'grow, expand, and find meaning' 
+                            : 'establish structure and discipline'}.
+              </p>
+              <Button 
+                variant="secondary" 
+                size="small" 
+                onClick={() => setSelectedPlanet(null)}
+                style={{ marginTop: '16px' }}
+              >
+                Close
+              </Button>
+            </InfoCard>
+          )}
+        </AnimatePresence>
+      </ChartContainer>
+    </Container>
+  );
+};
+
+export default SoulMap;// src/screens/SoulMap.js
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useSelector } from 'react-redux';
+
+// Components
+import SectionTitle from '../components/SectionTitle';
+import GlowingCard from '../components/GlowingCard';
+import Button from '../components/Button';
+
+const Container = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  background: ${props => props.theme.gradient || 'linear-gradient(to bottom, #87CEEB, #FFFFFF)'};
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+`;

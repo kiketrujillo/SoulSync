@@ -1,0 +1,87 @@
+// src/services/offlineDataService.js
+/**
+ * SoulSync Offline Data Service
+ * 
+ * Handles data persistence and syncing between local IndexedDB and the server.
+ * Provides methods for CRUD operations on journal entries, quests, and other app data.
+ */
+
+// Initialize IndexedDB
+const dbPromise = createIndexedDB();
+
+// IndexedDB setup
+function createIndexedDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      console.warn("Your browser doesn't support IndexedDB. Offline functionality will be limited.");
+      return reject("IndexedDB not supported");
+    }
+    
+    const request = indexedDB.open("SoulSyncDB", 1);
+    
+    request.onerror = (event) => {
+      console.error("IndexedDB error:", event.target.error);
+      reject("Error opening IndexedDB");
+    };
+    
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      resolve(db);
+    };
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      
+      // Create object stores
+      if (!db.objectStoreNames.contains('journal')) {
+        const journalStore = db.createObjectStore('journal', { keyPath: 'id', autoIncrement: true });
+        journalStore.createIndex('by_date', 'date', { unique: false });
+        journalStore.createIndex('by_sync', 'synced', { unique: false });
+      }
+      
+      if (!db.objectStoreNames.contains('quests')) {
+        const questsStore = db.createObjectStore('quests', { keyPath: 'id' });
+        questsStore.createIndex('by_active', 'active', { unique: false });
+        questsStore.createIndex('by_completed', 'completed', { unique: false });
+      }
+      
+      if (!db.objectStoreNames.contains('userData')) {
+        db.createObjectStore('userData', { keyPath: 'key' });
+      }
+    };
+  });
+}
+
+/**
+ * Journal API
+ */
+
+// Get all journal entries
+export async function getJournalEntries() {
+  try {
+    const db = await dbPromise;
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['journal'], 'readonly');
+      const store = transaction.objectStore('journal');
+      const request = store.index('by_date').openCursor(null, 'prev'); // Most recent first
+      
+      const entries = [];
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          entries.push(cursor.value);
+          cursor.continue();
+        } else {
+          resolve(entries);
+        }
+      };
+      
+      request.onerror = (event) => {
+        reject(event.target.error);
+      };
+    });
+  } catch (error) {
+    console.error('Error getting journal entries:', error);
+    return [];
+  }
+}

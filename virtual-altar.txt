@@ -1,0 +1,390 @@
+// src/screens/VirtualAltar.js
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { motion } from 'framer-motion';
+import { useSelector } from 'react-redux';
+
+// Components
+import SectionTitle from '../components/SectionTitle';
+import Button from '../components/Button';
+import GlowingCard from '../components/GlowingCard';
+import BottomDrawer from '../components/BottomDrawer';
+
+const Container = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  background: ${props => props.theme.gradient || 'linear-gradient(to bottom, #87CEEB, #FFFFFF)'};
+  padding: 24px;
+`;
+
+const Header = styled.div`
+  margin-bottom: 32px;
+`;
+
+const Description = styled.p`
+  margin-bottom: 24px;
+  line-height: 1.6;
+`;
+
+const AltarContainer = styled.div`
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(5px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: ${props => props.theme.shadows?.soft || '0 4px 8px rgba(0, 0, 0, 0.1)'};
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 32px;
+`;
+
+const AltarBackground = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: ${props => props.background || 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.2))'};
+  z-index: 0;
+`;
+
+const AltarItem = styled(motion.div)`
+  position: absolute;
+  width: ${props => props.size || '60px'};
+  height: ${props => props.size || '60px'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: ${props => props.fontSize || '1.5rem'};
+  cursor: grab;
+  user-select: none;
+  z-index: 1;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+  
+  &:hover {
+    filter: drop-shadow(0 0 12px ${props => props.theme.primary || '#87CEEB'});
+  }
+  
+  &:active {
+    cursor: grabbing;
+  }
+`;
+
+const ItemsPanel = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 32px;
+  justify-content: center;
+`;
+
+const ItemButton = styled(motion.button)`
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-5px);
+  }
+`;
+
+const IntentionCard = styled(GlowingCard)`
+  margin-bottom: 32px;
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 16px;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  font-family: 'Montserrat', sans-serif;
+  
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.primary || '#87CEEB'};
+  }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  font-family: 'Montserrat', sans-serif;
+  min-height: 100px;
+  resize: vertical;
+  
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.primary || '#87CEEB'};
+  }
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+`;
+
+// Altar item options
+const altarItems = [
+  { id: 'candle', emoji: '🕯️', name: 'Candle', description: 'Represents illumination, clarity, and setting intentions' },
+  { id: 'crystal', emoji: '💎', name: 'Crystal', description: 'Amplifies energy and helps focus your intention' },
+  { id: 'flower', emoji: '🌹', name: 'Flower', description: 'Symbolizes beauty, growth, and the blossoming of intentions' },
+  { id: 'incense', emoji: '🧂', name: 'Incense', description: 'Purifies the space and elevates spiritual awareness' },
+  { id: 'moon', emoji: '🌙', name: 'Moon', description: 'Represents intuition, cycles, and emotional depth' },
+  { id: 'pentacle', emoji: '⭐', name: 'Pentacle', description: 'Symbolizes the five elements and spiritual protection' },
+  { id: 'bowl', emoji: '🥣', name: 'Offering Bowl', description: 'A vessel for your gratitude and offerings' },
+  { id: 'feather', emoji: '🪶', name: 'Feather', description: 'Represents air element, thought, and freedom' },
+];
+
+// Background options
+const backgroundOptions = [
+  { id: 'nature', name: 'Nature', value: 'url(/assets/altar-bg-nature.jpg)' },
+  { id: 'cosmos', name: 'Cosmos', value: 'url(/assets/altar-bg-cosmos.jpg)' },
+  { id: 'temple', name: 'Temple', value: 'url(/assets/altar-bg-temple.jpg)' },
+  { id: 'simple', name: 'Simple', value: 'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.2))' },
+];
+
+const VirtualAltar = () => {
+  const [placedItems, setPlacedItems] = useState([]);
+  const [activeItem, setActiveItem] = useState(null);
+  const [background, setBackground] = useState(backgroundOptions[0].value);
+  const [isIntentionDrawerOpen, setIsIntentionDrawerOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [intention, setIntention] = useState({ title: '', description: '' });
+  
+  const user = useSelector(state => state.user);
+  
+  const handleAddItem = (item) => {
+    // Add new item to a random position within altar bounds
+    const newItem = {
+      ...item,
+      x: Math.random() * 60 + 20, // between 20% and 80% of width
+      y: Math.random() * 60 + 20, // between 20% and 80% of height
+      rotation: Math.random() * 30 - 15, // random rotation between -15 and 15 degrees
+      intention: null
+    };
+    
+    setPlacedItems([...placedItems, newItem]);
+  };
+  
+  const handleDragStart = (item) => {
+    setActiveItem(item);
+  };
+  
+  const handleDragEnd = (info, index) => {
+    setActiveItem(null);
+    
+    // Update the position of the dragged item
+    const updatedItems = [...placedItems];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      x: info.point.x / info.target.parentNode.clientWidth * 100,
+      y: info.point.y / info.target.parentNode.clientHeight * 100,
+    };
+    
+    setPlacedItems(updatedItems);
+  };
+  
+  const handleItemClick = (item, index) => {
+    setSelectedItem({ ...item, index });
+    setIntention({ 
+      title: item.intention?.title || '', 
+      description: item.intention?.description || '' 
+    });
+    setIsIntentionDrawerOpen(true);
+  };
+  
+  const handleSaveIntention = () => {
+    if (!selectedItem) return;
+    
+    // Update the intention for the selected item
+    const updatedItems = [...placedItems];
+    updatedItems[selectedItem.index] = {
+      ...updatedItems[selectedItem.index],
+      intention
+    };
+    
+    setPlacedItems(updatedItems);
+    setIsIntentionDrawerOpen(false);
+  };
+  
+  const handleRemoveItem = () => {
+    if (!selectedItem) return;
+    
+    // Remove the selected item
+    const updatedItems = placedItems.filter((_, index) => index !== selectedItem.index);
+    setPlacedItems(updatedItems);
+    setIsIntentionDrawerOpen(false);
+  };
+  
+  const handleChangeBackground = (bgValue) => {
+    setBackground(bgValue);
+  };
+  
+  return (
+    <Container>
+      <Header>
+        <SectionTitle>Your Virtual Altar</SectionTitle>
+        <Description>
+          Create a sacred space with meaningful objects to set intentions and focus your spiritual practice.
+          Drag items onto the altar and click them to set intentions.
+        </Description>
+      </Header>
+      
+      <div style={{ marginBottom: '24px' }}>
+        <Label>Choose Background</Label>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {backgroundOptions.map(bg => (
+            <Button 
+              key={bg.id}
+              variant={background === bg.value ? 'primary' : 'secondary'}
+              size="small"
+              onClick={() => handleChangeBackground(bg.value)}
+            >
+              {bg.name}
+            </Button>
+          ))}
+        </div>
+      </div>
+      
+      <AltarContainer>
+        <AltarBackground background={background} />
+        
+        {placedItems.map((item, index) => (
+          <AltarItem
+            key={`placed-${item.id}-${index}`}
+            style={{ 
+              top: `${item.y}%`, 
+              left: `${item.x}%`, 
+              rotate: item.rotation,
+              filter: item.intention 
+                ? `drop-shadow(0 0 12px ${item.intention ? user?.theme?.primary || '#87CEEB' : 'rgba(255, 255, 255, 0.5)'})`
+                : undefined
+            }}
+            drag
+            dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+            dragElastic={0.1}
+            dragMomentum={false}
+            onDragStart={() => handleDragStart(item)}
+            onDragEnd={(_, info) => handleDragEnd(info, index)}
+            onClick={() => handleItemClick(item, index)}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span role="img" aria-label={item.name}>{item.emoji}</span>
+          </AltarItem>
+        ))}
+      </AltarContainer>
+      
+      <SectionTitle>Add Items</SectionTitle>
+      <ItemsPanel>
+        {altarItems.map(item => (
+          <ItemButton
+            key={item.id}
+            onClick={() => handleAddItem(item)}
+            whileHover={{ y: -5 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span role="img" aria-label={item.name}>{item.emoji}</span>
+          </ItemButton>
+        ))}
+      </ItemsPanel>
+      
+      <IntentionCard>
+        <SectionTitle>Your Altar Intentions</SectionTitle>
+        {placedItems.length === 0 ? (
+          <p>Add items to your altar to set intentions.</p>
+        ) : (
+          placedItems.filter(item => item.intention).map((item, index) => (
+            <div key={`intention-${item.id}-${index}`} style={{ marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span role="img" aria-label={item.name}>{item.emoji}</span> 
+                {item.intention?.title || item.name}
+              </h3>
+              <p>{item.intention?.description || 'No intention set yet.'}</p>
+            </div>
+          ))
+        )}
+      </IntentionCard>
+      
+      <BottomDrawer
+        isOpen={isIntentionDrawerOpen}
+        onClose={() => setIsIntentionDrawerOpen(false)}
+        height="auto"
+      >
+        {selectedItem && (
+          <>
+            <SectionTitle>
+              <span role="img" aria-label={selectedItem.name}>{selectedItem.emoji}</span> 
+              {selectedItem.name} Intention
+            </SectionTitle>
+            
+            <p style={{ marginBottom: '16px' }}>{selectedItem.description}</p>
+            
+            <FormGroup>
+              <Label htmlFor="intention-title">Intention Title</Label>
+              <Input 
+                id="intention-title"
+                value={intention.title}
+                onChange={(e) => setIntention({ ...intention, title: e.target.value })}
+                placeholder="Name your intention..."
+              />
+            </FormGroup>
+            
+            <FormGroup>
+              <Label htmlFor="intention-description">Intention Details</Label>
+              <TextArea 
+                id="intention-description"
+                value={intention.description}
+                onChange={(e) => setIntention({ ...intention, description: e.target.value })}
+                placeholder="Describe your intention in detail..."
+              />
+            </FormGroup>
+            
+            <ButtonGroup>
+              <Button 
+                variant="primary"
+                onClick={handleSaveIntention}
+                disabled={!intention.title}
+                style={{ flex: 2 }}
+              >
+                Set Intention
+              </Button>
+              <Button 
+                variant="secondary"
+                onClick={handleRemoveItem}
+                style={{ flex: 1 }}
+              >
+                Remove Item
+              </Button>
+            </ButtonGroup>
+          </>
+        )}
+      </BottomDrawer>
+    </Container>
+  );
+};
+
+export default VirtualAltar;

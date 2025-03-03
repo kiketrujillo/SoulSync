@@ -1,0 +1,328 @@
+// src/screens/SkillTree.js
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useSelector } from 'react-redux';
+
+// Components
+import SectionTitle from '../components/SectionTitle';
+import GlowingCard from '../components/GlowingCard';
+import Button from '../components/Button';
+import BottomDrawer from '../components/BottomDrawer';
+
+const Container = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  background: ${props => props.theme.gradient || 'linear-gradient(to bottom, #87CEEB, #FFFFFF)'export default SkillTree;
+  padding: 24px;
+`;
+
+const Header = styled.div`
+  margin-bottom: 32px;
+`;
+
+const Description = styled.p`
+  margin-bottom: 24px;
+  line-height: 1.6;
+`;
+
+const TreeContainer = styled.div`
+  position: relative;
+  width: 100%;
+  height: 600px;
+  margin-bottom: 32px;
+  overflow: visible;
+`;
+
+const TreePath = styled(motion.path)`
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 2;
+  stroke-dasharray: 10;
+`;
+
+const SkillNode = styled(motion.div)`
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: ${props => props.unlocked 
+    ? props.theme.primary || '#87CEEB'
+    : 'rgba(255, 255, 255, 0.2)'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: ${props => props.theme.shadows?.medium || '0 6px 12px rgba(0, 0, 0, 0.15)'};
+  font-size: 1.8rem;
+  color: ${props => props.unlocked ? 'white' : 'rgba(0, 0, 0, 0.5)'};
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    border-radius: 50%;
+    border: 2px solid ${props => props.unlocked 
+      ? props.theme.primary || '#87CEEB' 
+      : 'rgba(255, 255, 255, 0.2)'};
+    opacity: 0.7;
+    pointer-events: none;
+  }
+`;
+
+const ProgressStat = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+`;
+
+const ProgressLabel = styled.span`
+  flex: 1;
+  font-weight: 500;
+`;
+
+const ProgressBarContainer = styled.div`
+  flex: 2;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+`;
+
+const ProgressBarFill = styled(motion.div)`
+  height: 100%;
+  background: ${props => props.theme.primary || '#87CEEB'};
+  border-radius: 4px;
+`;
+
+const ProgressNumber = styled.span`
+  margin-left: 12px;
+  font-size: 0.9rem;
+  color: ${props => props.theme.text?.secondary || '#666666'};
+`;
+
+const Tag = styled.span`
+  font-size: 0.7rem;
+  padding: 4px 8px;
+  background: ${props => props.theme.primary || '#87CEEB'}20;
+  border-radius: 12px;
+  color: ${props => props.theme.text?.primary || '#333333'};
+`;
+
+const LessonCard = styled(GlowingCard)`
+  margin-top: 24px;
+`;
+
+const SkillCategories = styled.div`
+  display: flex;
+  overflow-x: auto;
+  gap: 12px;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+`;
+
+const CategoryButton = styled(Button)`
+  flex-shrink: 0;
+`;
+
+// Skill nodes data - these would come from an API in a real app
+const skillNodes = [
+  {
+    id: 'astrology-intro',
+    title: 'Introduction to Astrology',
+    category: 'astrology',
+    icon: '🌟',
+    description: 'Learn the basics of astrology, including zodiac signs, planets, and houses.',
+    position: { top: 50, left: 180 },
+    level: 'beginner',
+    unlocked: true,
+    completed: true,
+    lessons: [
+      {
+        id: 'astro-1',
+        title: 'The Zodiac Wheel',
+        completed: true,
+        content: 'The zodiac is a belt-shaped region of the sky that extends approximately 8° north or south of the ecliptic, the apparent path of the Sun across the celestial sphere over the course of the year. The paths of the Moon and visible planets are within the belt of the zodiac.'
+      },
+      {
+        id: 'astro-2',
+        title: 'The Planets and Their Meanings',
+        completed: true,
+        content: 'Each planet in astrology governs different aspects of human experience. The Sun represents your core identity, while the Moon reflects your emotional nature, and so on.'
+      }
+    ]
+  },
+  {
+    id: 'astrology-planets',
+    title: 'Planetary Energies',
+    category: 'astrology',
+    icon: '🪐',
+    description: 'Deep dive into the meaning and influence of each planet in your chart.',
+    position: { top: 150, left: 280 },
+    level: 'intermediate',
+    unlocked: true,
+    completed: false,
+    lessons: [
+      {
+        id: 'planets-1',
+        title: 'Personal Planets',
+        completed: false,
+        content: 'The personal planets include Sun, Moon, Mercury, Venus, and Mars. They represent core aspects of your personality and day-to-day experiences.'
+      },
+      {
+        id: 'planets-2',
+        title: 'Social Planets',
+        completed: false,
+        content: 'Jupiter and Saturn are social planets that bridge the personal and collective experience, representing how we interact with society.'
+      }
+    ]
+  },
+  {
+    id: 'astrology-houses',
+    title: 'Houses & Life Areas',
+    category: 'astrology',
+    icon: '🏠',
+    description: 'Explore how the 12 houses in astrology relate to different areas of your life.',
+    position: { top: 250, left: 200 },
+    level: 'intermediate',
+    unlocked: false,
+    completed: false,
+    lessons: []
+  },
+  {
+    id: 'astrology-aspects',
+    title: 'Planetary Aspects',
+    category: 'astrology',
+    icon: '⚔️',
+    description: 'Understand how planets interact through aspects like conjunctions and squares.',
+    position: { top: 350, left: 280 },
+    level: 'advanced',
+    unlocked: false,
+    completed: false,
+    lessons: []
+  },
+  {
+    id: 'tarot-intro',
+    title: 'Tarot Basics',
+    category: 'tarot',
+    icon: '🔮',
+    description: 'Learn about the structure of the tarot deck and the meaning of the major arcana.',
+    position: { top: 120, left: 80 },
+    level: 'beginner',
+    unlocked: true,
+    completed: true,
+    lessons: [
+      {
+        id: 'tarot-1',
+        title: 'The Structure of the Tarot',
+        completed: true,
+        content: 'The tarot deck consists of 78 cards divided into the Major Arcana (22 cards) and Minor Arcana (56 cards). Each card holds symbolic meaning and tells part of the human journey.'
+      }
+    ]
+  },
+  {
+    id: 'tarot-minors',
+    title: 'Minor Arcana',
+    category: 'tarot',
+    icon: '🃏',
+    description: 'Explore the four suits of the minor arcana and their elemental associations.',
+    position: { top: 230, left: 100 },
+    level: 'intermediate',
+    unlocked: true,
+    completed: false,
+    lessons: []
+  },
+  {
+    id: 'tarot-spreads',
+    title: 'Tarot Spreads',
+    category: 'tarot',
+    icon: '📊',
+    description: 'Master different tarot spread layouts and when to use each one.',
+    position: { top: 360, left: 80 },
+    level: 'intermediate',
+    unlocked: false,
+    completed: false,
+    lessons: []
+  },
+  {
+    id: 'kabbalah-intro',
+    title: 'Introduction to Kabbalah',
+    category: 'kabbalah',
+    icon: '🌳',
+    description: 'Learn the fundamentals of Kabbalah and the Tree of Life structure.',
+    position: { top: 180, left: 380 },
+    level: 'beginner',
+    unlocked: true,
+    completed: false,
+    lessons: []
+  },
+  {
+    id: 'kabbalah-sefirot',
+    title: 'The Ten Sefirot',
+    category: 'kabbalah',
+    icon: '✨',
+    description: 'Study the ten divine emanations that form the Tree of Life.',
+    position: { top: 300, left: 400 },
+    level: 'intermediate',
+    unlocked: false,
+    completed: false,
+    lessons: []
+  },
+  {
+    id: 'meditation-basics',
+    title: 'Meditation Essentials',
+    category: 'wellness',
+    icon: '🧘',
+    description: 'Learn foundational meditation techniques for spiritual growth.',
+    position: { top: 100, left: 480 },
+    level: 'beginner',
+    unlocked: true,
+    completed: true,
+    lessons: []
+  },
+  {
+    id: 'crystal-healing',
+    title: 'Crystal Healing',
+    category: 'wellness',
+    icon: '💎',
+    description: 'Discover how to work with crystals for energy healing and balance.',
+    position: { top: 220, left: 480 },
+    level: 'beginner',
+    unlocked: true,
+    completed: false,
+    lessons: []
+  }
+];
+
+// Define paths between nodes that are connected
+const nodePaths = [
+  { from: 'astrology-intro', to: 'astrology-planets' },
+  { from: 'astrology-planets', to: 'astrology-houses' },
+  { from: 'astrology-houses', to: 'astrology-aspects' },
+  { from: 'tarot-intro', to: 'tarot-minors' },
+  { from: 'tarot-minors', to: 'tarot-spreads' },
+  { from: 'kabbalah-intro', to: 'kabbalah-sefirot' },
+  { from: 'meditation-basics', to: 'crystal-healing' }
+];
+
+const calculateCompletion = (nodes, category = null) => {
+  const filteredNodes = category 
+    ? nodes.filter(node => node.category === category)
+    : nodes;
+  
+  const completed = filteredNodes.filter(node => node.completed).length;
+  const total = filteredNodes.length;
+  
+  return {
+    completed,
+    total,
+    percentage: total > 0 ? (completed / total) * 100 : 0
+  };
+};

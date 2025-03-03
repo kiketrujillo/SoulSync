@@ -1,0 +1,15 @@
+// src/screens/SoulMap.js
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useSelector } from 'react-redux';
+
+// Components
+import SectionTitle from '../components/SectionTitle';
+import GlowingCard from '../components/GlowingCard';
+import Button from '../components/Button';
+
+const Container = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  background: ${props => props.theme.gradient || 'linear-gradient(to bottom, #87CEEB, #

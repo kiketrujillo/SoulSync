@@ -1,0 +1,254 @@
+// src/screens/Onboarding.js
+import React, { useState, useContext } from 'react';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useDispatch, useSelector } from 'react-redux';
+import { setUser, setIsOnboarded } from '../store/userSlice';
+import { ThemeContext } from 'styled-components';
+import Button from '../components/Button';
+
+const OnboardingContainer = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: ${props => props.theme.gradient || 'linear-gradient(to bottom, #87CEEB, #FFFFFF)'};
+`;
+
+const OnboardingCard = styled(motion.div)`
+  width: 100%;
+  max-width: 500px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+`;
+
+const StepIndicator = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+`;
+
+const StepDot = styled.div`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${props => props.active ? props.theme.primary || '#87CEEB' : 'rgba(0, 0, 0, 0.1)'};
+  transition: background 0.3s ease;
+`;
+
+const Title = styled.h1`
+  margin-bottom: 16px;
+  font-size: 2rem;
+`;
+
+const Subtitle = styled.p`
+  margin-bottom: 32px;
+  color: ${props => props.theme.text?.secondary || '#666666'};
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 24px;
+  width: 100%;
+  text-align: left;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1rem;
+  outline: none;
+  
+  &:focus {
+    border-color: ${props => props.theme.primary || '#87CEEB'};
+  }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1rem;
+  outline: none;
+  height: 120px;
+  resize: none;
+  
+  &:focus {
+    border-color: ${props => props.theme.primary || '#87CEEB'};
+  }
+`;
+
+const ButtonContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+`;
+
+const CircleAnimation = styled(motion.div)`
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  border: 2px solid ${props => props.theme.primary || '#87CEEB'};
+  opacity: 0.2;
+`;
+
+const WelcomeAnimation = styled(motion.div)`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+`;
+
+const TreeOfLifeSVG = styled(motion.svg)`
+  width: 200px;
+  height: 200px;
+`;
+
+// Simple Tree of Life SVG component
+const TreeOfLife = ({ theme }) => (
+  <TreeOfLifeSVG viewBox="0 0 100 100">
+    {/* Central pillar */}
+    <motion.line 
+      x1="50" y1="10" 
+      x2="50" y2="90" 
+      stroke={theme.primary || "#87CEEB"} 
+      strokeWidth="2"
+      initial={{ pathLength: 0, opacity: 0 }}
+      animate={{ pathLength: 1, opacity: 1 }}
+      transition={{ duration: 1, delay: 0.5 }}
+    />
+    
+    {/* Sefirot (the 10 nodes) */}
+    {[
+      { cx: 50, cy: 10, delay: 1.0 },    // Keter
+      { cx: 50, cy: 30, delay: 1.2 },    // Tiferet
+      { cx: 50, cy: 50, delay: 1.4 },    // Yesod
+      { cx: 50, cy: 70, delay: 1.6 },    // Malkuth
+      { cx: 30, cy: 20, delay: 1.8 },    // Binah
+      { cx: 70, cy: 20, delay: 2.0 },    // Chokmah
+      { cx: 30, cy: 40, delay: 2.2 },    // Gevurah
+      { cx: 70, cy: 40, delay: 2.4 },    // Chesed
+      { cx: 30, cy: 60, delay: 2.6 },    // Hod
+      { cx: 70, cy: 60, delay: 2.8 }     // Netzach
+    ].map((node, index) => (
+      <motion.circle
+        key={index}
+        cx={node.cx}
+        cy={node.cy}
+        r="4"
+        fill={theme.primary || "#87CEEB"}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5, delay: node.delay }}
+      />
+    ))}
+    
+    {/* Connecting paths */}
+    {[
+      { x1: 30, y1: 20, x2: 70, y2: 20, delay: 3.0 },  // Binah to Chokmah
+      { x1: 30, y1: 40, x2: 70, y2: 40, delay: 3.1 },  // Gevurah to Chesed
+      { x1: 30, y1: 60, x2: 70, y2: 60, delay: 3.2 },  // Hod to Netzach
+      { x1: 30, y1: 20, x2: 50, y2: 30, delay: 3.3 },  // Binah to Tiferet
+      { x1: 70, y1: 20, x2: 50, y2: 30, delay: 3.4 },  // Chokmah to Tiferet
+      { x1: 30, y1: 40, x2: 50, y2: 30, delay: 3.5 },  // Gevurah to Tiferet
+      { x1: 70, y1: 40, x2: 50, y2: 30, delay: 3.6 },  // Chesed to Tiferet
+      { x1: 30, y1: 40, x2: 30, y2: 60, delay: 3.7 },  // Gevurah to Hod
+      { x1: 70, y1: 40, x2: 70, y2: 60, delay: 3.8 },  // Chesed to Netzach
+      { x1: 30, y1: 60, x2: 50, y2: 50, delay: 3.9 },  // Hod to Yesod
+      { x1: 70, y1: 60, x2: 50, y2: 50, delay: 4.0 },  // Netzach to Yesod
+      { x1: 50, y1: 50, x2: 50, y2: 70, delay: 4.1 },  // Yesod to Malkuth
+    ].map((path, index) => (
+      <motion.line
+        key={`path-${index}`}
+        x1={path.x1}
+        y1={path.y1}
+        x2={path.x2}
+        y2={path.y2}
+        stroke={theme.primary || "#87CEEB"}
+        strokeWidth="1"
+        strokeOpacity="0.6"
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 0.6 }}
+        transition={{ duration: 0.5, delay: path.delay }}
+      />
+    ))}
+  </TreeOfLifeSVG>
+);
+
+const Onboarding = ({ onComplete }) => {
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    birthDate: '',
+    birthTime: '',
+    birthPlace: '',
+    mood: '',
+    intention: ''
+  });
+  const dispatch = useDispatch();
+  const theme = useContext(ThemeContext);
+  
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleNext = () => {
+    if (step < 3) {
+      setStep(step + 1);
+    } else {
+      completeOnboarding();
+    }
+  };
+  
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
+  
+  const completeOnboarding = () => {
+    // In a real app, we'd send this data to the backend to calculate zodiac sign
+    // For now, we'll hardcode a random sign for demo purposes
+    const zodiacSigns = [
+      'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 
+      'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+    ];
+    const randomSign = zodiacSigns[Math.floor(Math.random() * zodiacSigns.length)];
+    
+    // Save user data to Redux store
+    dispatch(setUser({
+      birthDate: formData.birthDate,
+      birthTime: formData.birthTime,
+      birthPlace: formData.birthPlace,
+      mood: formData.mood,
+      zodiacSign: randomSign
+    }));
+    
+    // Mark onboarding as complete
+    dispatch(setIsOnboarded(true));
+    
+    // Call onComplete callback if provided
+    if (onComplete) onComplete();
+  };
